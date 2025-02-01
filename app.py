@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 import pandas as pd
 import os
-from utils.gcp_utils import create_gcp_user, assign_gcp_roles
+from utils.gcp_utils import create_google_workspace_user
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -21,7 +21,7 @@ def index():
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
-    """Handles CSV and Excel uploads and processes GCP account creation."""
+    """Handles CSV and Excel uploads and processes Google Workspace user creation."""
     if request.method == 'POST':
         if 'file' not in request.files:
             flash("No file uploaded. Please select a file.", "danger")
@@ -59,14 +59,13 @@ def upload_file():
                 last_name = student['Last Name']
                 personal_email = student['Personal Email']
 
-                # Create GCP Account
-                university_email = create_gcp_user(first_name, last_name, personal_email)
+                # Create Google Workspace User
+                university_email = create_google_workspace_user(first_name, last_name, personal_email)
 
                 if university_email:
-                    assign_gcp_roles(university_email)
                     created_accounts += 1
 
-            flash(f"{created_accounts} GCP accounts created successfully!", "success")
+            flash(f"{created_accounts} Google Workspace accounts created successfully!", "success")
             return redirect(url_for('upload_file'))
 
         except Exception as e:
