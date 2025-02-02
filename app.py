@@ -1,7 +1,14 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 import pandas as pd
 import os
-from utils.gcp_utils import create_google_workspace_user
+from utils.gcp_utils import (
+    create_google_workspace_user,
+    list_google_workspace_users,
+    update_google_workspace_user,
+    reset_google_workspace_password,
+    suspend_google_workspace_user,
+    delete_google_workspace_user,
+)
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -14,14 +21,56 @@ app.secret_key = os.getenv('SECRET_KEY', 'fallback_secret_key')
 # Ensure the upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-@app.route('/')
-def index():
-    """Home Page"""
-    return render_template('index.html')
+# Mock authentication credentials
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'vedanth.balakrishna2001@gmail.com')
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'Vedanth@123')
+
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    """Login Page"""
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        if email == ADMIN_EMAIL and password == ADMIN_PASSWORD:
+            session['user'] = email
+            flash("Login successful!", "success")
+            return redirect(url_for('home'))
+        else:
+            flash("Invalid email or password. Please try again.", "danger")
+
+    return render_template('login.html')
+
+@app.route('/home', methods=['GET'])
+def home():
+    """Home Page after Login"""
+    if 'user' not in session:
+        return redirect(url_for('login'))
+
+    try:
+        users = list_google_workspace_users()
+        total_users = len(users)
+        total_admins = len([user for user in users if user.get('isAdmin')])
+        suspended_users = len([user for user in users if user.get('suspended')])
+        active_users = total_users - suspended_users
+
+        return render_template(
+            'index.html',
+            total_users=total_users,
+            total_admins=total_admins,
+            suspended_users=suspended_users,
+            active_users=active_users,
+        )
+    except Exception as e:
+        flash(f"Error fetching user statistics: {str(e)}", "danger")
+        return render_template('index.html', total_users=0, total_admins=0, suspended_users=0, active_users=0)
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
-    """Handles CSV and Excel uploads and processes Google Workspace user creation."""
+    """Handles CSV uploads and creates Google Workspace users."""
+    if 'user' not in session:
+        return redirect(url_for('login'))
+
     if request.method == 'POST':
         if 'file' not in request.files:
             flash("No file uploaded. Please select a file.", "danger")
@@ -29,50 +78,113 @@ def upload_file():
 
         file = request.files['file']
 
-        if file.filename == '':
-            flash("No selected file. Please choose a file to upload.", "danger")
+        if file.filename == '' or not (file.filename.endswith('.csv') or file.filename.endswith('.xlsx')):
+            flash("Invalid file type. Only CSV and Excel files are allowed.", "danger")
             return redirect(url_for('upload_file'))
 
-        if not (file.filename.endswith('.csv') or file.filename.endswith('.xlsx')):
-            flash("Invalid file type. Only CSV and Excel (.xlsx) files are allowed.", "danger")
-            return redirect(url_for('upload_file'))
-
-        filename = file.filename
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(filepath)
 
         try:
-            # Load CSV or Excel file
             df = pd.read_csv(filepath) if file.filename.endswith('.csv') else pd.read_excel(filepath)
-
-            # Validate if required columns exist
             required_columns = {"First Name", "Last Name", "Personal Email"}
+
             if not required_columns.issubset(df.columns):
-                flash("Invalid file format. Ensure the file has 'First Name', 'Last Name', and 'Personal Email' columns.", "danger")
+                flash("Invalid file format. Ensure required columns are present.", "danger")
                 return redirect(url_for('upload_file'))
 
-            students = df.to_dict(orient='records')
+            for _, student in df.iterrows():
+                create_google_workspace_user(
+                    student['First Name'],
+                    student['Last Name'],
+                    student['Personal Email']
+                )
 
-            created_accounts = 0
-            for student in students:
-                first_name = student['First Name']
-                last_name = student['Last Name']
-                personal_email = student['Personal Email']
-
-                # Create Google Workspace User
-                university_email = create_google_workspace_user(first_name, last_name, personal_email)
-
-                if university_email:
-                    created_accounts += 1
-
-            flash(f"{created_accounts} Google Workspace accounts created successfully!", "success")
-            return redirect(url_for('upload_file'))
-
+            flash("Users created successfully!", "success")
         except Exception as e:
             flash(f"Error processing file: {str(e)}", "danger")
-            return redirect(url_for('upload_file'))
 
     return render_template('upload.html')
+
+@app.route('/users', methods=['GET'])
+def list_users():
+    """Displays all Google Workspace users."""
+    if 'user' not in session:
+        return redirect(url_for('login'))
+
+    try:
+        users = list_google_workspace_users()
+        return render_template('users.html', users=users)
+    except Exception as e:
+        flash(f"Error fetching users: {str(e)}", "danger")
+        return redirect(url_for('home'))
+
+@app.route('/users/reset-password', methods=['POST'])
+def reset_password():
+    """Resets a user's password."""
+    if 'user' not in session:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    email = request.json.get('email')
+    try:
+        new_password = reset_google_workspace_password(email)
+        return jsonify({"message": f"Password reset successfully for {email}!", "password": new_password})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/users/bulk-suspend', methods=['POST'])
+def bulk_suspend_users():
+    """Bulk Suspend or Activate Users."""
+    if 'user' not in session:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    emails = request.json.get('emails')  # Expecting a list of emails
+    action = request.json.get('action', '').lower()  # Ensure action is a string
+
+    if not emails:
+        return jsonify({"error": "No users selected for suspension"}), 400
+
+    if action not in ['suspend', 'activate']:
+        return jsonify({"error": "Invalid action. Expected 'suspend' or 'activate'"}), 400
+
+    errors = []
+    for email in emails:
+        is_suspend = action == 'suspend'
+        success = suspend_google_workspace_user(email, is_suspend)
+
+        if not success:
+            errors.append(email)
+
+    if errors:
+        return jsonify({"message": "Some users could not be suspended/activated", "failed": errors}), 500
+    return jsonify({"message": f"Selected users {'suspended' if is_suspend else 'activated'} successfully!"})
+
+@app.route('/users/bulk-delete', methods=['POST'])
+def bulk_delete_users():
+    """Deletes multiple users from Google Workspace."""
+    if 'user' not in session:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    emails = request.json.get('emails')  # Expecting a list of emails
+
+    if not emails:
+        return jsonify({"error": "No users selected for deletion"}), 400
+
+    errors = []
+    for email in emails:
+        success = delete_google_workspace_user(email)
+        if not success:
+            errors.append(email)
+
+    if errors:
+        return jsonify({"message": "Some users could not be deleted", "failed": errors}), 500
+    return jsonify({"message": "Selected users deleted successfully!"})
+
+@app.route('/logout')
+def logout():
+    """Logs out the admin."""
+    session.pop('user', None)
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(debug=True)
