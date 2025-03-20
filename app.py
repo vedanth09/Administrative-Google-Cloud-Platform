@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 import pandas as pd
 import os
-from utils.gcp_utils import (
+from utils.gcp_utils import (  # OAuth for Google Workspace
     create_google_workspace_user,
     list_google_workspace_users,
     update_google_workspace_user,
@@ -9,10 +9,16 @@ from utils.gcp_utils import (
     suspend_google_workspace_user,
     delete_google_workspace_user,
 )
+from utils.gcp_billing_manager import billing_bp  # Service Account for GCP Billing
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Debugging: Print Python path & service account file
+import sys
+print(f"DEBUG: Running Flask with Python: {sys.executable}")
+print(f"DEBUG: SERVICE_ACCOUNT_FILE = {os.getenv('SERVICE_ACCOUNT_FILE')}")
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -20,6 +26,9 @@ app.secret_key = os.getenv('SECRET_KEY', 'fallback_secret_key')
 
 # Ensure the upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Register the Billing API routes (GCP Billing)
+app.register_blueprint(billing_bp, url_prefix='/gcp')
 
 # Mock authentication credentials
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'vedanth.balakrishna2001@gmail.com')
@@ -126,6 +135,10 @@ def reset_password():
         return jsonify({"error": "Unauthorized"}), 403
 
     email = request.json.get('email')
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
     try:
         new_password = reset_google_workspace_password(email)
         return jsonify({"message": f"Password reset successfully for {email}!", "password": new_password})
@@ -138,8 +151,9 @@ def bulk_suspend_users():
     if 'user' not in session:
         return jsonify({"error": "Unauthorized"}), 403
 
-    emails = request.json.get('emails')  # Expecting a list of emails
-    action = request.json.get('action', '').lower()  # Ensure action is a string
+    request_data = request.json
+    emails = request_data.get('emails', [])
+    action = request_data.get('action', '').strip().lower()
 
     if not emails:
         return jsonify({"error": "No users selected for suspension"}), 400
@@ -148,10 +162,9 @@ def bulk_suspend_users():
         return jsonify({"error": "Invalid action. Expected 'suspend' or 'activate'"}), 400
 
     errors = []
+    is_suspend = (action == 'suspend')
     for email in emails:
-        is_suspend = action == 'suspend'
         success = suspend_google_workspace_user(email, is_suspend)
-
         if not success:
             errors.append(email)
 
@@ -165,7 +178,7 @@ def bulk_delete_users():
     if 'user' not in session:
         return jsonify({"error": "Unauthorized"}), 403
 
-    emails = request.json.get('emails')  # Expecting a list of emails
+    emails = request.json.get('emails', [])
 
     if not emails:
         return jsonify({"error": "No users selected for deletion"}), 400

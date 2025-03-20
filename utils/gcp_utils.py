@@ -20,12 +20,15 @@ if not EMAIL_SENDER or not EMAIL_PASSWORD:
 
 # OAuth 2.0 Client Secret File
 CLIENT_SECRET_FILE = os.getenv("CLIENT_SECRET_FILE")
-
 if not CLIENT_SECRET_FILE or not os.path.exists(CLIENT_SECRET_FILE):
     raise FileNotFoundError(f"Client secret file not found: {CLIENT_SECRET_FILE}")
 
 # Scopes for Google APIs (Google Workspace Only)
-SCOPES = ['https://www.googleapis.com/auth/admin.directory.user']
+SCOPES = [
+    'https://www.googleapis.com/auth/admin.directory.user',
+    'https://www.googleapis.com/auth/admin.directory.group',
+    'https://www.googleapis.com/auth/admin.directory.group.member'
+]
 
 # Authenticate using OAuth 2.0
 flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
@@ -35,6 +38,8 @@ print("Access Token Generated:", credentials.token)
 
 # Initialize Google Admin SDK
 admin_service = build('admin', 'directory_v1', credentials=credentials)
+
+### 🛠️ EXISTING FUNCTIONS (UNCHANGED) ###
 
 def send_student_email(personal_email, university_email, first_name, last_name, password):
     """Sends an email to the student's personal email with their new Google Workspace login details."""
@@ -153,31 +158,53 @@ def list_google_workspace_users():
         print(f"Error fetching users: {e}")
         return []
 
-def create_google_workspace_users_from_file(file_path):
-    """Reads a CSV or Excel file and creates Google Workspace accounts for students."""
-    if not os.path.exists(file_path):
-        print(f"File not found: {file_path}")
-        return
+### 📌 NEWLY ADDED GROUP MANAGEMENT FUNCTIONS ###
 
-    if file_path.endswith(".csv"):
-        df = pd.read_csv(file_path)
-    elif file_path.endswith(".xlsx"):
-        df = pd.read_excel(file_path)
-    else:
-        print("Unsupported file format. Please upload a .csv or .xlsx file.")
-        return
+def create_google_workspace_group(group_name, group_email, description=""):
+    """Creates a new Google Workspace group."""
+    try:
+        group_body = {
+            "email": group_email,
+            "name": group_name,
+            "description": description
+        }
+        response = admin_service.groups().insert(body=group_body).execute()
+        print(f"Group '{group_name}' created successfully!")
+        return response
+    except Exception as e:
+        print(f"Error creating group '{group_name}': {e}")
+        return None
 
-    required_columns = ["First Name", "Last Name", "Personal Email"]
-    if not all(col in df.columns for col in required_columns):
-        print("Missing required columns: 'First Name', 'Last Name', 'Personal Email'")
-        return
+def add_user_to_group(user_email, group_email):
+    """Adds a user to a Google Workspace group."""
+    try:
+        membership_body = {
+            "email": user_email,
+            "role": "MEMBER"
+        }
+        response = admin_service.members().insert(groupKey=group_email, body=membership_body).execute()
+        print(f"User '{user_email}' added to group '{group_email}'.")
+        return response
+    except Exception as e:
+        print(f"Error adding user '{user_email}' to group '{group_email}': {e}")
+        return None
 
-    print(f"Processing {len(df)} students for Google Workspace account creation...")
+def remove_user_from_group(user_email, group_email):
+    """Removes a user from a Google Workspace group."""
+    try:
+        response = admin_service.members().delete(groupKey=group_email, memberKey=user_email).execute()
+        print(f"User '{user_email}' removed from group '{group_email}'.")
+        return response
+    except Exception as e:
+        print(f"Error removing user '{user_email}' from group '{group_email}': {e}")
+        return None
 
-    for _, student in df.iterrows():
-        first_name = student['First Name']
-        last_name = student['Last Name']
-        personal_email = student['Personal Email']
-        create_google_workspace_user(first_name, last_name, personal_email)
-
-    print("Bulk Google Workspace User Creation Completed.")
+def delete_google_workspace_group(group_email):
+    """Deletes a Google Workspace group."""
+    try:
+        response = admin_service.groups().delete(groupKey=group_email).execute()
+        print(f"Group '{group_email}' deleted successfully.")
+        return response
+    except Exception as e:
+        print(f"Error deleting group '{group_email}': {e}")
+        return None

@@ -104,8 +104,8 @@
             });
 
             const result = await response.json();
-            if (result.success) {
-                alert("Selected users deleted successfully.");
+            if (result.message) {
+                alert(result.message);
                 location.reload();
             } else {
                 alert("Failed to delete users.");
@@ -127,12 +127,12 @@
             const response = await fetch('/users/bulk-suspend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ emails: selectedEmails })
+                body: JSON.stringify({ emails: selectedEmails, action: "suspend" })
             });
 
             const result = await response.json();
-            if (result.success) {
-                alert("Selected users suspended successfully.");
+            if (result.message) {
+                alert(result.message);
                 location.reload();
             } else {
                 alert("Failed to suspend users.");
@@ -158,8 +158,8 @@
             });
 
             const result = await response.json();
-            if (result.success) {
-                alert("Passwords reset successfully.");
+            if (result.message) {
+                alert(result.message);
                 location.reload();
             } else {
                 alert("Failed to reset passwords.");
@@ -172,27 +172,59 @@
 
     // Individual actions
     async function resetPassword(email) {
-        // Add code to reset password
+        if (!confirm(`Are you sure you want to reset the password for ${email}?`)) return;
+
+        try {
+            const response = await fetch('/users/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+
+            const result = await response.json();
+            alert(result.message || "Failed to reset password.");
+        } catch (error) {
+            console.error(error);
+            alert("An error occurred while resetting the password.");
+        }
     }
 
     async function renameUser(email) {
-        // Add code to rename user
+        const newName = prompt("Enter the new name for the user:");
+        if (!newName) return;
+
+        try {
+            const response = await fetch('/users/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, newName })
+            });
+
+            const result = await response.json();
+            alert(result.message || "Failed to rename user.");
+        } catch (error) {
+            console.error(error);
+            alert("An error occurred while renaming the user.");
+        }
     }
 
     async function addToGroup(email) {
-        // Add code to add to group
-    }
+        const groupName = prompt("Enter the group name to add the user to:");
+        if (!groupName) return;
 
-    async function emailUser(email) {
-        // Add code to email user
-    }
+        try {
+            const response = await fetch('/users/add-to-group', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, groupName })
+            });
 
-    async function suspendUser(email) {
-        // Add code to suspend user
-    }
-
-    async function deleteUser(email) {
-        // Add code to delete user
+            const result = await response.json();
+            alert(result.message || "Failed to add user to group.");
+        } catch (error) {
+            console.error(error);
+            alert("An error occurred while adding the user to the group.");
+        }
     }
 
     function getSelectedEmails() {
