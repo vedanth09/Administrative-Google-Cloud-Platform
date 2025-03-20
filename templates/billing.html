@@ -1,6 +1,101 @@
 {% extends "base.html" %}
-{% block title %}Billing{% endblock %}
+{% block title %}Billing Management{% endblock %}
 {% block content %}
-<h1 class="text-center">Billing Information</h1>
-<p class="text-center mt-4">Billing details will be shown here.</p>
+
+<div class="container mt-4">
+    <h1 class="text-center text-primary">
+        <i class="fas fa-file-invoice-dollar"></i> Billing Management
+    </h1>
+    <p class="text-center text-muted">View and manage billing accounts efficiently.</p>
+
+    {% if error %}
+        <div class="alert alert-danger text-center">{{ error }}</div>
+    {% endif %}
+
+    <div class="text-end mb-3">
+        <a href="{{ url_for('billing.list_billing_accounts') }}" class="btn btn-primary">
+            <i class="fas fa-sync-alt"></i> Refresh Billing Accounts
+        </a>
+    </div>
+
+    <div class="card p-4 shadow-sm mb-4">
+        <h5><strong>Select a Billing Account:</strong></h5>
+        <select id="billingAccountSelect" class="form-select" onchange="fetchBillingDetails()">
+            <option value="">-- Select a Billing Account --</option>
+            {% if billing_accounts %}
+                {% for account in billing_accounts %}
+                    <option value="{{ account.name.replace('billingAccounts/', '') }}">{{ account.displayName }}</option>
+                {% endfor %}
+            {% endif %}
+        </select>
+    </div>
+
+    <div class="card p-4 shadow-sm">
+        <h3 class="text-primary"><i class="fas fa-list"></i> All Billing Accounts</h3>
+
+        <div class="mb-3">
+            <input type="text" id="searchInput" class="form-control" placeholder="Search billing accounts..." onkeyup="filterTable()">
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Billing Account ID</th>
+                        <th>Billing Account Name</th>
+                        <th>Currency</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="billingTableBody">
+                    {% if billing_accounts %}
+                        {% for account in billing_accounts %}
+                            <tr>
+                                <td>{{ account.name.replace("billingAccounts/", "") }}</td>
+                                <td>{{ account.displayName }}</td>
+                                <td>{{ account.currencyCode }}</td>
+                                <td>
+                                    {% if account.open %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Closed</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('billing.get_billing_account_details', billing_account_id=account.name.replace('billingAccounts/', '')) }}" 
+                                       class="btn btn-sm btn-info">
+                                        View Details
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="5" class="text-center text-muted">No billing accounts available.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function filterTable() {
+        const input = document.getElementById("searchInput").value.toLowerCase();
+        const rows = document.querySelectorAll("#billingTableBody tr");
+
+        rows.forEach(row => {
+            const accountName = row.cells[1].textContent.toLowerCase();
+            row.style.display = accountName.includes(input) ? "" : "none";
+        });
+    }
+
+    function fetchBillingDetails() {
+        let billingAccountId = document.getElementById("billingAccountSelect").value;
+        if (!billingAccountId) return;
+
+        window.location.href = `/gcp/billing/account-details?billing_account_id=${billingAccountId}`;
+    }
+</script>
+
 {% endblock %}

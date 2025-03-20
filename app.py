@@ -185,6 +185,7 @@ def bulk_delete_users():
 
     errors = []
     for email in emails:
+        print(f"DEBUG: Sending delete request for user: {email}") 
         success = delete_google_workspace_user(email)
         if not success:
             errors.append(email)

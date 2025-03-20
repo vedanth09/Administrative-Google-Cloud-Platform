@@ -7,7 +7,7 @@
     <!-- Quick Actions Section -->
     <div class="row g-4">
         <!-- Upload Users -->
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-center shadow">
                 <div class="card-body">
                     <h5 class="card-title">Upload Users</h5>
@@ -18,7 +18,7 @@
         </div>
         
         <!-- View Users -->
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-center shadow">
                 <div class="card-body">
                     <h5 class="card-title">View Users</h5>
@@ -29,7 +29,7 @@
         </div>
         
         <!-- Account Settings -->
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-center shadow">
                 <div class="card-body">
                     <h5 class="card-title">Account Settings</h5>
@@ -38,6 +38,18 @@
                 </div>
             </div>
         </div>
+
+        <!-- Billing Section -->
+        <div class="col-md-3">
+            <div class="card text-center shadow border-warning">
+                <div class="card-body">
+                    <h5 class="card-title text-warning">Billing</h5>
+                    <p class="card-text">View and manage GCP billing details and student usage.</p>
+                    <a href="{{ url_for('billing.list_billing_accounts') }}" class="btn btn-warning w-100">View Billing</a>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Dashboard Stats Section -->

@@ -111,11 +111,12 @@ def suspend_google_workspace_user(email, suspend=True):
 def delete_google_workspace_user(email):
     """Deletes a user from Google Workspace."""
     try:
+        print(f"DEBUG: Attempting to delete user {email}")  # 
         admin_service.users().delete(userKey=email).execute()
-        print(f"User {email} deleted successfully.")
+        print(f"DEBUG: User {email} deleted successfully.")  # 
         return True
     except Exception as e:
-        print(f"Error deleting user {email}: {e}")
+        print(f"ERROR: Failed to delete user {email}: {e}")  # 
         return False
 
 def create_google_workspace_user(first_name, last_name, personal_email):
@@ -158,7 +159,7 @@ def list_google_workspace_users():
         print(f"Error fetching users: {e}")
         return []
 
-### 📌 NEWLY ADDED GROUP MANAGEMENT FUNCTIONS ###
+###  NEWLY ADDED GROUP MANAGEMENT FUNCTIONS ###
 
 def create_google_workspace_group(group_name, group_email, description=""):
     """Creates a new Google Workspace group."""

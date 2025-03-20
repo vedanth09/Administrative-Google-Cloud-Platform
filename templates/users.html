@@ -49,6 +49,7 @@
                                 <li><a class="dropdown-item" href="#" onclick="resetPassword('{{ user['primaryEmail'] }}')">Reset Password</a></li>
                                 <li><a class="dropdown-item" href="#" onclick="renameUser('{{ user['primaryEmail'] }}')">Rename User</a></li>
                                 <li><a class="dropdown-item" href="#" onclick="addToGroup('{{ user['primaryEmail'] }}')">Add to Groups</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="removeFromGroup('{{ user['primaryEmail'] }}')">Remove from Groups</a></li>
                                 <li><a class="dropdown-item" href="#" onclick="emailUser('{{ user['primaryEmail'] }}')">Email User</a></li>
                                 <li><a class="dropdown-item" href="#" onclick="suspendUser('{{ user['primaryEmail'] }}')">Suspend User</a></li>
                                 <li><a class="dropdown-item text-danger" href="#" onclick="deleteUser('{{ user['primaryEmail'] }}')">Delete User</a></li>
@@ -60,175 +61,142 @@
             </tbody>
         </table>
     </div>
+
+    <!-- ✅ NEW: Group Management Section -->
+    <div class="card p-4 shadow-sm mt-4">
+        <h3 class="text-primary">Manage Google Groups</h3>
+
+        <!-- Add User to Group -->
+        <div class="mb-3">
+            <div class="row">
+                <div class="col-md-5">
+                    <input type="email" id="groupUserEmail" class="form-control" placeholder="User Email">
+                </div>
+                <div class="col-md-5">
+                    <input type="email" id="groupEmail" class="form-control" placeholder="Group Email">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-success w-100" onclick="addUserToGroup()">
+                        <i class="fas fa-user-plus"></i> Add to Group
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remove User from Group -->
+        <div class="mb-3">
+            <div class="row">
+                <div class="col-md-5">
+                    <input type="email" id="removeGroupUserEmail" class="form-control" placeholder="User Email">
+                </div>
+                <div class="col-md-5">
+                    <input type="email" id="removeGroupEmail" class="form-control" placeholder="Group Email">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-danger w-100" onclick="removeUserFromGroup()">
+                        <i class="fas fa-user-minus"></i> Remove from Group
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Group -->
+        <div>
+            <div class="row">
+                <div class="col-md-10">
+                    <input type="email" id="deleteGroupEmail" class="form-control" placeholder="Group Email">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-danger w-100" onclick="deleteGroup()">
+                        <i class="fas fa-trash"></i> Delete Group
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
-    // Select all functionality
+    // ✅ Select/Deselect all checkboxes
     document.getElementById("select-all").addEventListener("click", function () {
         const checkboxes = document.querySelectorAll(".user-checkbox");
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
 
-    // Filter table rows based on search input
-    function filterTable() {
-        const input = document.getElementById("searchInput");
-        const filter = input.value.toLowerCase();
-        const rows = document.querySelectorAll("#userTable tbody tr");
-
-        rows.forEach(row => {
-            const email = row.cells[1].textContent.toLowerCase();
-            const fullName = row.cells[2].textContent.toLowerCase();
-            const recoveryEmail = row.cells[3].textContent.toLowerCase();
-
-            if (email.includes(filter) || fullName.includes(filter) || recoveryEmail.includes(filter)) {
-                row.style.display = "";
-            } else {
-                row.style.display = "none";
-            }
-        });
-    }
-
-    // Bulk actions
-    async function bulkDelete() {
-        const selectedEmails = getSelectedEmails();
-        if (selectedEmails.length === 0) {
-            alert("No users selected.");
-            return;
-        }
-
-        try {
-            const response = await fetch('/users/bulk-delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ emails: selectedEmails })
-            });
-
-            const result = await response.json();
-            if (result.message) {
-                alert(result.message);
-                location.reload();
-            } else {
-                alert("Failed to delete users.");
-            }
-        } catch (error) {
-            console.error(error);
-            alert("An error occurred while deleting users.");
-        }
-    }
-
-    async function bulkSuspend() {
-        const selectedEmails = getSelectedEmails();
-        if (selectedEmails.length === 0) {
-            alert("No users selected.");
-            return;
-        }
-
-        try {
-            const response = await fetch('/users/bulk-suspend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ emails: selectedEmails, action: "suspend" })
-            });
-
-            const result = await response.json();
-            if (result.message) {
-                alert(result.message);
-                location.reload();
-            } else {
-                alert("Failed to suspend users.");
-            }
-        } catch (error) {
-            console.error(error);
-            alert("An error occurred while suspending users.");
-        }
-    }
-
-    async function bulkResetPassword() {
-        const selectedEmails = getSelectedEmails();
-        if (selectedEmails.length === 0) {
-            alert("No users selected.");
-            return;
-        }
-
-        try {
-            const response = await fetch('/users/bulk-reset-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ emails: selectedEmails })
-            });
-
-            const result = await response.json();
-            if (result.message) {
-                alert(result.message);
-                location.reload();
-            } else {
-                alert("Failed to reset passwords.");
-            }
-        } catch (error) {
-            console.error(error);
-            alert("An error occurred while resetting passwords.");
-        }
-    }
-
-    // Individual actions
-    async function resetPassword(email) {
-        if (!confirm(`Are you sure you want to reset the password for ${email}?`)) return;
-
-        try {
-            const response = await fetch('/users/reset-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email })
-            });
-
-            const result = await response.json();
-            alert(result.message || "Failed to reset password.");
-        } catch (error) {
-            console.error(error);
-            alert("An error occurred while resetting the password.");
-        }
-    }
-
-    async function renameUser(email) {
-        const newName = prompt("Enter the new name for the user:");
-        if (!newName) return;
-
-        try {
-            const response = await fetch('/users/rename', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, newName })
-            });
-
-            const result = await response.json();
-            alert(result.message || "Failed to rename user.");
-        } catch (error) {
-            console.error(error);
-            alert("An error occurred while renaming the user.");
-        }
-    }
-
-    async function addToGroup(email) {
-        const groupName = prompt("Enter the group name to add the user to:");
-        if (!groupName) return;
-
-        try {
-            const response = await fetch('/users/add-to-group', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, groupName })
-            });
-
-            const result = await response.json();
-            alert(result.message || "Failed to add user to group.");
-        } catch (error) {
-            console.error(error);
-            alert("An error occurred while adding the user to the group.");
-        }
-    }
-
+    // ✅ Get all selected user emails
     function getSelectedEmails() {
-        return Array.from(document.querySelectorAll(".user-checkbox:checked")).map(checkbox => checkbox.dataset.email);
+        return Array.from(document.querySelectorAll(".user-checkbox:checked"))
+            .map(checkbox => checkbox.dataset.email);
+    }
+
+    // ✅ BULK DELETE USERS FUNCTION
+    function bulkDelete() {
+        const selectedEmails = getSelectedEmails();
+        if (selectedEmails.length === 0) {
+            alert("Please select at least one user to delete.");
+            return;
+        }
+
+        if (!confirm("Are you sure you want to delete the selected users?")) return;
+
+        fetch('/users/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: selectedEmails })
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message || "Users deleted successfully!");
+            location.reload();
+        })
+        .catch(error => alert("An error occurred while deleting users."));
+    }
+
+    // ✅ BULK SUSPEND USERS FUNCTION
+    function bulkSuspend() {
+        const selectedEmails = getSelectedEmails();
+        if (selectedEmails.length === 0) {
+            alert("Please select at least one user to suspend.");
+            return;
+        }
+
+        if (!confirm("Are you sure you want to suspend the selected users?")) return;
+
+        fetch('/users/bulk-suspend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: selectedEmails, action: "suspend" })
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message || "Users suspended successfully!");
+            location.reload();
+        })
+        .catch(error => alert("An error occurred while suspending users."));
+    }
+
+    // ✅ BULK RESET PASSWORD FUNCTION
+    function bulkResetPassword() {
+        const selectedEmails = getSelectedEmails();
+        if (selectedEmails.length === 0) {
+            alert("Please select at least one user to reset passwords.");
+            return;
+        }
+
+        if (!confirm("Are you sure you want to reset passwords for the selected users?")) return;
+
+        fetch('/users/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: selectedEmails })
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message || "Passwords reset successfully!");
+            location.reload();
+        })
+        .catch(error => alert("An error occurred while resetting passwords."));
     }
 </script>
+
 {% endblock %}
